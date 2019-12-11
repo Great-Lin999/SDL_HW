@@ -373,9 +373,10 @@ ESP: 19FE34 ->-4->19FE30->-4->19FE2C->-4->19FE28(call指令也入栈了一个数
 
 ## **第九节课(2019.12.03)**
 
+### [Windebug课件](https://anjingcuc.github.io/courses-wiki/substitute/windbg/)
     
 
-https://anjingcuc.github.io/courses-wiki/substitute/windbg/
+
 
 ![](./img/yunxingku.png)            
 ![](./img/86.png)            
@@ -415,37 +416,139 @@ g
 ![](./img/u32.png)              
 
 #### 打开记事本
+```
 .symfix C:\symbols
 .sympath
 x kernel32!WriteFile*
-
+```
 ![](./img/note.png)              
 
 
 ![](./img/bl.png)               
-
+```
 bu kernel32!WriteFile
 bu kernel32!WriteFileEX
 bl
 g
 保存记事本
+```
+*未完待续……*
 
-![](./img/)              
-![](./img/)           
-![](./img/)               
-![](./img/)                
-![](./img/)            
-![](./img/)              
-![](./img/)              
-![](./img/)               
-![](./img/)              
-![](./img/)           
-![](./img/)               
-![](./img/)                
-![](./img/)            
-![](./img/)              
-![](./img/)              
-![](./img/)               
+## **第十节课(2019.12.10)**
+> [Windebug课件](https://anjingcuc.github.io/courses-wiki/substitute/windbg/)
+>
+> [官方命令](https://docs.microsoft.com/zh-cn/windows-hardware/drivers/debugger/)
+
+### 常用命令
+![](./img/命令.png)
+
+指令	   作用
+.symfix	指定本地缓存目录
+.sympath	设置符号路径，包括本地缓存和远程符号服务器
+.reload	重新加载模板
+x	查看模块符号
+bu	下断点
+bl	列出断点
+g	继续执行程序
+k	查看调用堆栈 
+lm	列出当前进程加载的模块              
+u: 查看后续的n条指令
+上下键：翻页
+esc：清空所有内容
+n: 查看进制
+> [微软官方文档 - WinDBG 命令](https://docs.microsoft.com/zh-cn/windows-hardware/drivers/debugger/using-debugger-commands)
+
+>上次失败原因：记事本调用的不是kernel32里面的WriteFile而是kernelbase里面的，可以用processmonitor查看
+
+### 表达式
+![](./img/表达式.png)           
+>PPT中 format 改为 formats
+* ```.expr```查看当前表达式的处理器
+* ```.expr /s c++```可以改变，一般情况下不改
+* 两个窗口类似vs的局部变量和监视器
+![](./img/win.png)               
+
+### 数字
+![](./img/shuzi.png)                
+* ```n```查看几进制
+* ```n 10```修改为10进制
+### 符号
+![](./img/char.png)            
+
+### 别名
+![](./img/别名.png)              
+别名其实是一个宏
+![](./img/us.png)              
+```
+as demo 5+1（这是一个表达式，不会算）
+as /x demo 5+1 （会计算）
+# 固定别名
+r $.u0 = 5+1
+.echo $u0
+${} 展开
+```
+### 调试脚本
+![](./img/调试脚本.png)               
+* 不退出调试器，重新执行            
+![](./img/re.png)              
+* 调试
+  1. windebug打开windows下面的记事本
+  2. 下断点
+  ```
+  bu kernelbase!writefile ".echo hello;g"
+  bl
+  g
+  ```
+  ![](./img/duandian.png)           
+  3. 记事本弹出，随便输，然后保存，会输出hello                  
+  ![](./img/hello.png)               
+  4. 将命令写到记事本中                 
+  ![](./img/c.png)                
+  5. 引入脚本文件                 
+  ```
+  bu kernelbase!writefile "$><C:\\Users\\18801\\Desktop\\c.txt"
+  g
+  ```
+  ![](./img/hell0.png)            
+  * 脚本实例     
+  ```
+  .foreach (value {dd 61000 L4})
+  {
+   as /x ${/v:myAlias} value + 1
+   .block{.echo value myAlias}
+  }
+  
+  //foreach: 每行执行
+  //dd: 查看内存内容  6100：地址   L4后面四个地址的内容
+  //value: 每次查看的内容赋值给value
+  //{
+  //echo value
+  //}
+  //ad myAlias
+  ```
+### 演示实验
+* 实验
+  1. 脚本c.txt    
+  ```
+  as /mu content poi(esp+0n24)  # poi /mu  是字符串
+  .block{.if($scmp("${content}","123456")==0){ezu poi(esp+0n24) "hacked";}.else{.echo content}}   # ezu 改值 u:unicode
+  g
+  ```
+  2. 下断点              
+  ```
+  bu kernelbase!writefile "$><C:\\Users\\18801\\Desktop\\c.txt"
+  g
+  ```
+  3. 保存123456后会显示hacked，需要刷新一下                     
+  ![](./img/123.png)              
+  ![](./img/ha.png)               
+* 原理
+  1. writefile函数
+    ![](./img/write.png)              
+  2. 因为64位，所以每个参数占8字节，32位的话就是4字节
+  
+![](./img/123.png)              
+![](./img/ha.png)               
 ![](./img/)              
 ![](./img/)           
 ![](./img/)               
@@ -466,3 +569,4 @@ g
 
 ## 参考资料
 * [intel手册](https://www.intel.cn/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-1-manual.pdf)
+* [Windebug课件](https://anjingcuc.github.io/courses-wiki/substitute/windbg/)
