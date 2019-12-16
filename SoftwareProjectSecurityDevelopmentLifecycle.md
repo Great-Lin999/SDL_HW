@@ -549,9 +549,333 @@ ${} 展开
   
 ![](./img/123.png)              
 ![](./img/ha.png)               
+
+## **第十一节课(2019.12.16)**
+>[Taking a Snapshot and Viewing Processes-遍历当前的所有进程](https://docs.microsoft.com/zh-cn/windows/win32/toolhelp/taking-a-snapshot-and-viewing-processes)
+### 程序注入                    
+* 用一个程序篡改另一个程序              
+![](./img/api.png)                
+* 结构体              
+![](./img/jiegou.png)             
+### 程序      
+> 存放在D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\Snapshot            
+```cpp
+#include <windows.h>
+#include <tlhelp32.h>
+#include <tchar.h>
+
+//  Forward declarations:
+BOOL GetProcessList();
+BOOL ListProcessModules(DWORD dwPID);
+BOOL ListProcessThreads(DWORD dwOwnerPID);
+void printError(TCHAR* msg);
+
+int main(void)
+{
+	GetProcessList();
+	return 0;
+}
+
+BOOL GetProcessList()
+{
+	HANDLE hProcessSnap;
+	HANDLE hProcess;
+	PROCESSENTRY32 pe32;
+	DWORD dwPriorityClass;
+
+	// Take a snapshot of all processes in the system.
+	hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);  //得到快照句柄，系统对象可被操作的对象ID，文件窗口，进程，现场
+	                                                                  
+	if (hProcessSnap == INVALID_HANDLE_VALUE)
+	{
+		printError(TEXT("CreateToolhelp32Snapshot (of processes)"));
+		return(FALSE);
+	}
+
+	// Set the size of the structure before using it.
+	pe32.dwSize = sizeof(PROCESSENTRY32);
+
+	// Retrieve information about the first process,
+	// and exit if unsuccessful
+	if (!Process32First(hProcessSnap, &pe32))    //进程结果放在pe32中
+	{
+		printError(TEXT("Process32First")); // show cause of failure
+		CloseHandle(hProcessSnap);          // clean the snapshot object
+		return(FALSE);
+	}
+
+	// Now walk the snapshot of processes, and
+	// display information about each process in turn
+	do
+	{
+		_tprintf(TEXT("\n\n====================================================="));
+		_tprintf(TEXT("\nPROCESS NAME:  %s"), pe32.szExeFile);
+		_tprintf(TEXT("\n-------------------------------------------------------"));
+
+		// Retrieve the priority class.
+		dwPriorityClass = 0;
+		hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pe32.th32ProcessID);
+		if (hProcess == NULL)
+			printError(TEXT("OpenProcess"));
+		else
+		{
+			dwPriorityClass = GetPriorityClass(hProcess);
+			if (!dwPriorityClass)
+				printError(TEXT("GetPriorityClass"));
+			CloseHandle(hProcess);
+		}
+
+		_tprintf(TEXT("\n  Process ID        = 0x%08X"), pe32.th32ProcessID);
+		_tprintf(TEXT("\n  Thread count      = %d"), pe32.cntThreads);
+		_tprintf(TEXT("\n  Parent process ID = 0x%08X"), pe32.th32ParentProcessID);
+		_tprintf(TEXT("\n  Priority base     = %d"), pe32.pcPriClassBase);
+		if (dwPriorityClass)
+			_tprintf(TEXT("\n  Priority class    = %d"), dwPriorityClass);
+
+		// List the modules and threads associated with this process
+		ListProcessModules(pe32.th32ProcessID);   //遍历一个进程的模块
+		ListProcessThreads(pe32.th32ProcessID);   //遍历一个进程的所有线程
+
+	} while (Process32Next(hProcessSnap, &pe32)); //遍历完返回0，没遍历完返回1
+
+	CloseHandle(hProcessSnap);
+	return(TRUE);
+}
+
+
+BOOL ListProcessModules(DWORD dwPID)
+{
+	HANDLE hModuleSnap = INVALID_HANDLE_VALUE;
+	MODULEENTRY32 me32;
+
+	// Take a snapshot of all modules in the specified process.
+	hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, dwPID);
+	if (hModuleSnap == INVALID_HANDLE_VALUE)
+	{
+		printError(TEXT("CreateToolhelp32Snapshot (of modules)"));
+		return(FALSE);
+	}
+
+	// Set the size of the structure before using it.
+	me32.dwSize = sizeof(MODULEENTRY32);
+
+	// Retrieve information about the first module,
+	// and exit if unsuccessful
+	if (!Module32First(hModuleSnap, &me32))
+	{
+		printError(TEXT("Module32First"));  // show cause of failure
+		CloseHandle(hModuleSnap);           // clean the snapshot object
+		return(FALSE);
+	}
+
+	// Now walk the module list of the process,
+	// and display information about each module
+	do
+	{
+		_tprintf(TEXT("\n\n     MODULE NAME:     %s"), me32.szModule);
+		_tprintf(TEXT("\n     Executable     = %s"), me32.szExePath);
+		_tprintf(TEXT("\n     Process ID     = 0x%08X"), me32.th32ProcessID);
+		_tprintf(TEXT("\n     Ref count (g)  = 0x%04X"), me32.GlblcntUsage);
+		_tprintf(TEXT("\n     Ref count (p)  = 0x%04X"), me32.ProccntUsage);
+		_tprintf(TEXT("\n     Base address   = 0x%08X"), (DWORD)me32.modBaseAddr);
+		_tprintf(TEXT("\n     Base size      = %d"), me32.modBaseSize);
+
+	} while (Module32Next(hModuleSnap, &me32));
+
+	CloseHandle(hModuleSnap);
+	return(TRUE);
+}
+
+BOOL ListProcessThreads(DWORD dwOwnerPID)
+{
+	HANDLE hThreadSnap = INVALID_HANDLE_VALUE;
+	THREADENTRY32 te32;
+
+	// Take a snapshot of all running threads  
+	hThreadSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+	if (hThreadSnap == INVALID_HANDLE_VALUE)
+		return(FALSE);
+
+	// Fill in the size of the structure before using it. 
+	te32.dwSize = sizeof(THREADENTRY32);
+
+	// Retrieve information about the first thread,
+	// and exit if unsuccessful
+	if (!Thread32First(hThreadSnap, &te32))
+	{
+		printError(TEXT("Thread32First")); // show cause of failure
+		CloseHandle(hThreadSnap);          // clean the snapshot object
+		return(FALSE);
+	}
+
+	// Now walk the thread list of the system,
+	// and display information about each thread
+	// associated with the specified process
+	do
+	{
+		if (te32.th32OwnerProcessID == dwOwnerPID)
+		{
+			_tprintf(TEXT("\n\n     THREAD ID      = 0x%08X"), te32.th32ThreadID);
+			_tprintf(TEXT("\n     Base priority  = %d"), te32.tpBasePri);
+			_tprintf(TEXT("\n     Delta priority = %d"), te32.tpDeltaPri);
+			_tprintf(TEXT("\n"));
+		}
+	} while (Thread32Next(hThreadSnap, &te32));
+
+	CloseHandle(hThreadSnap);
+	return(TRUE);
+}
+
+void printError(TCHAR* msg)
+{
+	DWORD eNum;
+	TCHAR sysMsg[256];
+	TCHAR* p;
+
+	eNum = GetLastError();
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL, eNum,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+		sysMsg, 256, NULL);
+
+	// Trim the end of the line and terminate it with a null
+	p = sysMsg;
+	while ((*p > 31) || (*p == 9))
+		++p;
+	do { *p-- = 0; } while ((p >= sysMsg) &&
+		((*p == '.') || (*p < 33)));
+
+	// Display the message
+	_tprintf(TEXT("\n  WARNING: %s failed with error %d (%s)"), msg, eNum, sysMsg);
+}
+```             
+>.cpp改为.c文件，就可以运行成功                
+1. 输出结果与任务栏管理器差不多            
+![](./img/输出.png)               
+2. cmd中输入```tasklist```，系统显示输出的进程,程序查看的与cmd中的输出是一样的v              
+![](./img/tasklist.png)                
+3. 每个模块第一个一定是exe,且有且仅有一个exe,下面跟着.dll           
+![](./img/ddl.png)            
+4. 可以用开发者工具 ```dumbing \imports```,多个API会共用同一个dll
+
+### DLL（动态链接库）
+* 链接是把若干个程序的组成部分拼接到一起             
+>D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP4
+```cpp
+a.c
+int main()
+{
+	sub();
+}
+
+b.c
+//修改前
+int sub()
+{
+	return 0;
+}
+//修改后
+#include<Windows.h>
+int sub()
+{
+	MessageBox(0, "msg", 0, 0);
+	return 0;
+}
+```
+![](./img/ac.png)              
+1. 切换到a.c,b.c所在目录
+2. 编译```cl.exe /c b.c``````cl.exe /c a.c```     
+![](./img/obj.png)              
+3. 链接```link a.obj b.obj /out:hehe.exe```
+              
+4. 加入MessageBox函数
+![](./img/mes.png)              
+5. ```link a.obj b.obj User32.lib /out:hehe.exe```
+![](./img/hhe.png)           
+6. ```dumpbin /imports hehe.exe```,impoet MeaasgeBox但是没有sub()          
+![](./img/nosub.png)               
+* 静态链接是指源代码在可执行程序内部，在同一文件里面，相对位置不变。动态链接是指代码不在exe内，需要运行时去寻找，相对位置是改变的
+7. ```dumpbin /exports C:\Windows\System32\User32.dll>user.txt```，```notepad hehe.exe```
+8. ctal+F查找
+![](./img/user.png)                
+* 为什么要动态链接
+  * 静态链接越要编译好的机器指令在exe中放一份，例如print会被复制很多个，可执行文件会非常大，会有空间的浪费
+  * 当代码出现问题，要进行升级时，需要将所有调用这个函数的代码都升级一遍。如果单独放在一个文件中就只需要改这一个文件
+  * 开发一个基础平台，不用开发源代码，用可以让更多人调用。起到了闭源系统同样能开放的功能
+  * 没有动态链接，操作系统会异常臃肿和庞大，不宜升级和更新。能保证基础代码只有一个拷贝就可以。新编写的代码只是基础代码的增量。
+* 作业
+  * [Process Explorer](https://docs.microsoft.com/zh-cn/sysinternals/)
+  * [Dependency Walker](http://www.dependencywalker.com/)
+  * 综合使用今天使用的模块遍历，结合三个工具dumpbin,Process Explorer,Dependency Walker结合分析比较
+### 编写DLL文件
+>[模块定义文件](https://docs.microsoft.com/en-us/cpp/build/reference/module-definition-dot-def-files?view=vs-2019)                         
+>[模块定义文件例子](https://docs.microsoft.com/en-us/cpp/build/exporting-from-a-dll-using-def-files?view=vs-2019)        
+
+![](./img/dingyiwenjian.png)            
+>D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP4\Base
+```cpp
+base.c
+#include<Windows.h>
+int intnal_function()
+{
+
+}
+int lib_function(char * msg)
+{
+	MessageBoxA(0, "message from base lib", msg, MB_OK);
+}
+
+exp.def
+LIBRARY   baselib
+EXPORTS
+   lib_function
+```
+1. 转到源代码目录```D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP4\Base\Base```
+2. ```link base.obj User32.lib /dll /def:exp.def```
+3. 得到dll文件，还有一个.lib文件
+![](./img/createdll.png)              
+4. 验证dll成功
 ![](./img/)              
-![](./img/)           
-![](./img/)               
+5. 此时执行不能成功，改一下几个属性
+![](./img/16cha1.png)               
+![](./img/16cha1.png)              
+6. 
+![](./img/yilai.png)           
+>D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP4\APP
+
+* 调运dll文件
+
+```cpp
+app.cpp
+int main()
+{
+	lib_function("call a dll");
+}
+```
+1. 把base.lib，dll,.h复制过来或者加入到include的头文件中去
+2. 转到当前目录
+3. ```cl.exe /c app.c```
+4. ```link app.obj D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP4\Base\Base\base.lib /out:app.exe```
+5. ```dumpbin /imports app.exe```
+
+
+### 运行时建立dll
+* .exe->dll有两种方式：①load time 会在加载时加入lib,并且会有imports table；②run time:通过指针进行调用
+>[例子](https://docs.microsoft.com/zh-cn/windows/win32/dlls/using-run-time-dynamic-linking)
+![](./img/funpoint.png)               
+### 作业
+1. 会编写dll。把.c文件编译为obj文件，把obj文件和lib文件链接为新的dll和lib文件。注意使用def文件定义导出函数。
+2. 编写一个exe，调用第一步生成的dll文件中的导出函数。方法是（1）link是，将第一步生成的lib文件作为输入文件。（2）保证dll文件和exe文件在同一个目录，或者dll文件在系统目录。
+3. **第二步调用方式称为load time 特点是exe文件导入表中会出先需要调用的dll文件名及函数名，并且在link 生成exe是，需明确输入lib文件。还有一种调用方式称为 run time。参考上面的链接，使用run time的方式，调用dll的导出函数。包括系统API和第一步自行生成的dll，都要能成功调用。[参考资料](https://docs.microsoft.com/zh-cn/windows/win32/dlls/using-run-time-dynamic-linking)**
+4. 提示
+>link /dll /def:xxx.def 
+>
+>link xxx.lib /out:app.exe
+>
+>dumpbin /exports xxx.dll
+>
+>dumpbin /imports xxx.exe
+
 ![](./img/)                
 ![](./img/)            
 ![](./img/)              
