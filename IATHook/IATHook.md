@@ -221,25 +221,6 @@ int __cdecl wmain(int nArgc, WCHAR** Argv)
 			&g_hHook_WriteFile
 		);
 		
-		//
-		//HANDLE hFILE = CreateFile("D://YearJunior1//SoftwareProjectSecurityDevelopmentLifecycle//EXP5//Hook//Debug// 1.txt", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
-		//
-		//char buff[256] = "hello";
-
-		//DWORD dwWrite;
-
-		//WriteFile(hFILE, &buff, strlen(buff), &dwWrite, NULL);
-
-		//UnIATHook(g_hHook_WriteFile);
-
-		//CloseHandle(hFILE);
-
-		////MessageBoxA(NULL , "test" , "caption1" , 0);
-
-		////UnIATHook( g_hHook_MessageBoxA);
-
-		////MessageBoxA(NULL , "test" , "caption2" , 0);
 	
 	} while (FALSE);
 	
@@ -329,28 +310,14 @@ cd D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP6\DLLinject\Deb
 
 DLLinject.exe 8388 D:\YearJunior1\SoftwareProjectSecurityDevelopmentLifecycle\EXP6\DLLinject\Debug\IATHooklib.dll
 ```
-10. 会发现输入的hello,在文件保存后，再次打开时变成了hello hacker         
+10. 会发现输入的hello,在文件保存后，再次打开时变成了hello hacker                  
 ![](./img/hacker2.png)                     
 
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-![](./img/)                               
-
 ## 实验结论
-* AT Hook的步骤如下：
-calc.exe的ImageBase的地址 -> Image_Nt_Headers地址 -> Image_Import_Descriptor结构体组成的数组的起始地址（其中存储着DLL名称，IAT数组的起始地址）-> 通过DLL名称找到user32.dll对应的Image_Import_Descriptor -> 找到对应的IAT数组起始地址 -> 遍历IAT找到SetWindowTextW对应的条目，修改其值为MySetWindowTextW
+* IAT - Import Address Table ,导入地址列表。这里保存着各个导入的函数加载后的地址，它是动态的，随着Dll的加载的位置不同而不同。如果程序中使用了静态链接库文件，那么PE文件中就会有关于这些函数的导入表的存在，程序通过调用IAT表来定位函数地址从而实现调用。如果将这些已经确定好的函数地址给替换成为恶意函数地址，那么就会欺骗 程序运行恶意函数。
+* AT Hook的步骤如下：                   
+notepad.exe的ImageBase的地址 -> Image_Nt_Headers地址 -> Image_Import_Descriptor结构体组成的数组的起始地址（其中存储着DLL名称，IAT数组的起始地址）-> 通过DLL名称找到kernelbase.dll对应的Image_Import_Descriptor -> 找到对应的IAT数组起始地址 -> 遍历IAT找到WriteFile对应的条目，修改其值为Fake_WriteFile
+
 ## 参考资料
 * [IATHook实例仓库](https://github.com/tinysec/iathook.git)              
 * [C/C++ 文件操作之CreateFile、ReadFile和WriteFile](https://blog.csdn.net/jeanphorn/article/details/44982273)
