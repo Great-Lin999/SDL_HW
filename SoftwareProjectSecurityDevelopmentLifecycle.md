@@ -1060,67 +1060,7 @@ dumpbin /headers loader.exe
 wmain ,iathook,下断点，和中间的MEssageBoxA中间也下断点。执行到message，会发现这个位置改变
 ![](./img/23cha2.png)                
 
-![](./img/)            
-![](./img/)              
-![](./img/)              
-![](./img/)               
-![](./img/)                
-![](./img/)            
-![](./img/)              
-![](./img/)              
-![](./img/)               
-![](./img/)              
-![](./img/)           
-![](./img/)               
-![](./img/)                
-![](./img/)            
-![](./img/)              
-![](./img/)              
-![](./img/)               
-![](./img/)                
-![](./img/)            
-![](./img/)              
-![](./img/)              
-![](./img/)               
-![](./img/)              
-![](./img/)           
-![](./img/)               
-![](./img/)                
-![](./img/)            
-![](./img/)              
-![](./img/)              
-![](./img/)               
-![](./img/)                
-![](./img/)            
-![](./img/)              
-![](./img/)              
-![](./img/)               
-![](./img/)              
-![](./img/)           
-![](./img/)               
-![](./img/)                
-![](./img/)            
-![](./img/)              
-![](./img/)              
-![](./img/)               
-
-
-
-
-
-
-
-
 ## **第十四节课(2019.12.25)**
-
-
-
-
-
-## 参考资料
-* [intel手册](https://www.intel.cn/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-1-manual.pdf)
-* [Windebug课件](https://anjingcuc.github.io/courses-wiki/substitute/windbg/)
-
 ## 大作业
 线程注入技术和IATHook综合应用（记事本，dir,计算器) 
 1. hook writefile,自己调用writefile(首先create WRItefilr)，使得每次写文件haha->hehe
@@ -1131,3 +1071,6 @@ wmain ,iathook,下断点，和中间的MEssageBoxA中间也下断点。执行到
 6. 计算器 setwindowstext，不改输出，但是记录计算器的输出，实现屏幕取词。
 7. 接管其他进程，比如键盘输入，微信进程文本框输入
 
+## 参考资料
+* [intel手册](https://www.intel.cn/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-1-manual.pdf)
+* [Windebug课件](https://anjingcuc.github.io/courses-wiki/substitute/windbg/)
